@@ -1,6 +1,6 @@
 ---
 name: aso-appstore-screenshots
-description: Generate high-converting App Store screenshots by analyzing your app's codebase, discovering core benefits, and creating ASO-optimized screenshot images using Nano Banana Pro.
+description: Generate high-converting App Store screenshots by analyzing your app's codebase, discovering core benefits, and creating ASO-optimized screenshot images using OpenAI Image v2.
 user-invocable: true
 ---
 
@@ -12,7 +12,7 @@ This is a multi-phase process. Follow each phase in order — but ALWAYS check m
 
 ## RECALL (Always Do This First)
 
-Before doing ANY codebase analysis, check the Claude Code memory system for all previously saved state for this app. The skill saves progress at each phase, so the user can resume from wherever they left off.
+Before doing ANY codebase analysis, check the Codex memory system for all previously saved state for this app. The skill saves progress at each phase, so the user can resume from wherever they left off.
 
 **Check memory for each of these (in order):**
 
@@ -112,7 +112,7 @@ DO NOT proceed until the user explicitly confirms the benefits. This is an itera
 
 ### Step 5: Save to Memory
 
-Once the user confirms the final benefits, save them to the Claude Code memory system. Create or update a memory file (e.g., `aso_benefits.md`) with:
+Once the user confirms the final benefits, save them to the Codex memory system. Create or update a memory file (e.g., `aso_benefits.md`) with:
 - The app name and bundle ID
 - The confirmed benefits list (in order), each with the full headline (ACTION VERB + BENEFIT DESCRIPTOR)
 - The target audience
@@ -198,7 +198,7 @@ Let the user review and swap pairings before proceeding. Do NOT move to generati
 
 ### Step 6: Save to Memory
 
-Once pairings are confirmed, save the full screenshot analysis and pairings to the Claude Code memory system. Create or update a memory file (e.g., `aso_screenshot_pairings.md`) with:
+Once pairings are confirmed, save the full screenshot analysis and pairings to the Codex memory system. Create or update a memory file (e.g., `aso_screenshot_pairings.md`) with:
 
 - **Every simulator screenshot provided** — file path, what it shows, rating (Great/Usable/Retake), and assessment notes
 - **The confirmed pairings** — which benefit maps to which screenshot file, and why
@@ -210,21 +210,16 @@ This is critical for resumability. If the user comes back in a new conversation,
 
 ## GENERATION
 
-Once benefits and screenshot pairings are confirmed, generate the final App Store screenshots using Nano Banana Pro (via the Gemini MCP server).
+Once benefits and screenshot pairings are confirmed, generate the final App Store screenshots using OpenAI Image v2 (`gpt-image-2`). Do not use Gemini or Nano Banana for this skill unless the user explicitly overrides this requirement.
 
 ### Prerequisites Check
 
-Before generating, verify the Gemini MCP server is available by checking that the `generate_image` tool exists. If it is NOT available, tell the user:
+Before generating, verify an OpenAI Image v2-capable path is available. Prefer an OpenAI-backed image tool or the OpenAI Images/Responses API with `gpt-image-2`. If no OpenAI Image v2-capable path is available, tell the user:
 
 ```
-⚠️ Gemini MCP server not detected. To generate screenshots, you need to set it up:
+⚠️ OpenAI Image v2 generation is not available in this session. To generate screenshots with this skill, provide an OpenAI image-generation tool or configure the OpenAI API for `gpt-image-2`.
 
-1. Install: npm install -g gemini-mcp
-2. Add to your Claude Code MCP config (~/.claude/settings.json or project .mcp.json)
-3. Restart Claude Code
-4. Run this skill again
-
-See: https://github.com/nicobailon/gemini-mcp for setup instructions.
+Do not fall back to Gemini/Nano Banana unless explicitly instructed.
 ```
 
 Do NOT proceed with generation if the tool is unavailable.
@@ -241,7 +236,7 @@ App Store Connect is **very strict** about image dimensions — it will reject s
 
 Default to **1290 x 2796px** (iPhone 6.7") unless the user specifies otherwise. Ask the user which size(s) they need. Up to 10 screenshots can be uploaded per display size.
 
-**IMPORTANT — Aspect ratio mismatch**: Apple's required dimensions are narrower than standard 9:16 (~0.461 ratio vs 0.5625). Nano Banana generates at preset aspect ratios, so we generate **wider than needed** at 9:16 with 4K resolution, then **crop and resize** down to exact Apple dimensions in a post-processing step (see Step 4 below). This approach avoids stretching — we remove excess width instead.
+**IMPORTANT — Aspect ratio mismatch**: Apple's required dimensions are narrower than standard 9:16 (~0.461 ratio vs 0.5625). If the OpenAI Image v2 backend generates at a wider preset aspect ratio, generate **wider than needed** and then **crop and resize** down to exact Apple dimensions in a post-processing step (see Step 4 below). This approach avoids stretching — remove excess width instead.
 
 ### Screenshot Format Specification
 
@@ -278,7 +273,7 @@ Breakout elements can give screenshots personality and make them feel dynamic. B
 
 Generation uses a two-stage approach for consistency:
 1. **Stage 1 (Scaffold)**: compose.py creates a deterministic local image with the correct text, device frame, and screenshot. This guarantees consistent layout across all screenshots.
-2. **Stage 2 (Enhance)**: The scaffold is sent to Nano Banana Pro to add breakout elements, depth, and visual polish.
+2. **Stage 2 (Enhance)**: The scaffold is sent to OpenAI Image v2 to add breakout elements, depth, and visual polish.
 
 **The first approved screenshot becomes the style template for the entire set.** All subsequent screenshots are enhanced using both their own scaffold (for layout) AND the first approved screenshot (for style). This ensures every screenshot in the set has the same device frame rendering, text treatment, background style, and overall visual quality — so when viewed side-by-side in the App Store, they look like a cohesive professional set.
 
@@ -286,7 +281,7 @@ For each benefit + screenshot pair, generate **3 enhanced versions in parallel**
 
 **Step 0: Save brand colour to memory**
 
-Before generating any scaffolds, save the confirmed brand colour to the Claude Code memory system. Create or update the benefits memory file (e.g., `aso_benefits.md`) to include the brand colour name and hex code. This ensures the colour persists across conversations and is available immediately if the user resumes later.
+Before generating any scaffolds, save the confirmed brand colour to the Codex memory system. Create or update the benefits memory file (e.g., `aso_benefits.md`) to include the brand colour name and hex code. This ensures the colour persists across conversations and is available immediately if the user resumes later.
 
 **Step 1: Create the scaffold with compose.py**
 
@@ -295,7 +290,7 @@ The compose.py script lives in the skill directory. Run it to create the determi
 **IMPORTANT — Batch all 3 scaffolds into a single Bash call** to minimize permission prompts. Chain the commands with `&&` so the user only needs to approve once:
 
 ```bash
-SKILL_DIR="$HOME/.claude/skills/aso-appstore-screenshots" && \
+SKILL_DIR="${SKILL_DIR:-$HOME/.agents/skills/aso-appstore-screenshots}" && \
 mkdir -p screenshots/01-[benefit-slug] screenshots/02-[benefit-slug] screenshots/03-[benefit-slug] && \
 python3 "$SKILL_DIR/compose.py" \
   --bg "[HEX CODE]" --verb "[VERB 1]" --desc "[DESC 1]" \
@@ -317,11 +312,11 @@ This outputs pixel-perfect 1290×2796 PNGs with:
 - Simulator screenshot composited inside the frame
 - Solid background colour
 
-The scaffolds are internal intermediates — do NOT show them to the user or ask for confirmation. Proceed immediately to Step 2 (Nano Banana enhancement).
+The scaffolds are internal intermediates — do NOT show them to the user or ask for confirmation. Proceed immediately to Step 2 (OpenAI Image v2 enhancement).
 
-**Step 2: Enhance with Nano Banana Pro (3 versions in parallel)**
+**Step 2: Enhance with OpenAI Image v2 (3 versions in parallel)**
 
-Make **3 parallel `edit_image` calls**. The parallel execution is critical — always fire all 3 calls in a single message, never sequentially.
+Make **3 parallel OpenAI Image v2 edit calls** when the available tool supports image editing. The parallel execution is critical — always fire all 3 calls in a single message where possible, never sequentially unless the OpenAI tool only supports serial execution.
 
 For each of the 3 calls, use:
 - `prompt`: Enhancement instructions (see prompt templates below — different for first vs subsequent screenshots)
@@ -390,11 +385,11 @@ The result must look like it was designed alongside the style template as part o
 No watermarks, no extra text, no app store UI chrome.
 ```
 
-**IMPORTANT — Consistency enforcement**: The scaffold guarantees consistent layout. The style template guarantees consistent visual treatment. If Nano Banana changes the text, layout, or deviates from the style template, regenerate.
+**IMPORTANT — Consistency enforcement**: The scaffold guarantees consistent layout. The style template guarantees consistent visual treatment. If OpenAI Image v2 changes the text, layout, or deviates from the style template, regenerate.
 
 **Step 3: IMMEDIATELY crop and resize ALL 3 versions to App Store dimensions**
 
-⚠️ **You MUST run this immediately after all 3 `edit_image` calls complete. Do NOT show the user any image before running this. The raw Nano Banana output is always the wrong dimensions for App Store Connect.**
+⚠️ **You MUST run this immediately after all 3 OpenAI Image v2 edit calls complete. Do NOT show the user any image before running this. Raw generated output may be the wrong dimensions for App Store Connect.**
 
 **CRITICAL — Use exactly ONE Bash tool call for all 3 crop/resize operations.** Do NOT make 3 separate Bash calls. Do NOT use parallel Bash calls. Use the single loop below so the user only sees one permission prompt:
 
@@ -423,7 +418,7 @@ Target dimensions per display size — adjust `TARGET_W` and `TARGET_H`:
 
 **Step 4: Review all 3 versions with the user**
 
-Present all 3 **resized** versions (the `-resized.jpg` files) to the user using the Read tool. Never show the raw Nano Banana output — always show the post-processed versions.
+Present all 3 **resized** versions (the `-resized.jpg` files) to the user using the Read tool. Never show the raw generated output — always show the post-processed versions.
 
 Label them clearly as **Version 1**, **Version 2**, and **Version 3** and ask the user to pick their favourite or request changes.
 
@@ -489,7 +484,7 @@ Save generated screenshots to a `screenshots/` directory in the project root, or
 screenshots/
   01-track-card-prices/       ← working versions for benefit 1
     scaffold.png              ← deterministic compose.py output (text + frame + screenshot)
-    v1.jpg                    ← Nano Banana enhanced version 1
+    v1.jpg                    ← OpenAI Image v2 enhanced version 1
     v1-resized.jpg            ← cropped/resized to App Store dimensions
     v2.jpg
     v2-resized.jpg
@@ -510,7 +505,7 @@ Also tell the user exactly which App Store Connect display size slot each screen
 
 ### Save to Memory
 
-After each screenshot is generated (or after the full set is complete), save generation state to the Claude Code memory system. Create or update a memory file (e.g., `aso_generated_screenshots.md`) with:
+After each screenshot is generated (or after the full set is complete), save generation state to the Codex memory system. Create or update a memory file (e.g., `aso_generated_screenshots.md`) with:
 
 - **Brand colour**: name + hex code
 - **Target display size**: e.g., iPhone 6.7" (1290x2796)
@@ -531,7 +526,7 @@ Update this memory **incrementally** — after each screenshot is approved, add 
 Once ALL screenshots in the set are approved and saved to `final/`, generate a showcase image that displays up to 3 of the final screenshots side-by-side with a GitHub link. Use the showcase.py script in the skill directory:
 
 ```bash
-SKILL_DIR="$HOME/.claude/skills/aso-appstore-screenshots"
+SKILL_DIR="${SKILL_DIR:-$HOME/.agents/skills/aso-appstore-screenshots}"
 
 python3 "$SKILL_DIR/showcase.py" \
   --screenshots screenshots/final/01-*.jpg screenshots/final/02-*.jpg screenshots/final/03-*.jpg \
