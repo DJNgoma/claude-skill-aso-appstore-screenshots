@@ -210,19 +210,19 @@ This is critical for resumability. If the user comes back in a new conversation,
 
 ## GENERATION
 
-Once benefits and screenshot pairings are confirmed, generate the final App Store screenshots using OpenAI Image v2 (`gpt-image-2`). Do not use Gemini or Nano Banana for this skill unless the user explicitly overrides this requirement.
+Once benefits and screenshot pairings are confirmed, generate the final App Store screenshots. The skill supports two paths in this priority order:
 
-### Prerequisites Check
+### Path A — Local-only enhancement (default; no external services)
 
-Before generating, verify an OpenAI Image v2-capable path is available. Prefer an OpenAI-backed image tool or the OpenAI Images/Responses API with `gpt-image-2`. If no OpenAI Image v2-capable path is available, tell the user:
+Compose deterministically with `compose.py`, then add programmatic breakout polish with `enhance.py` (both ship with this skill, both use Pillow only — no API key, no browser, no Cloudflare). This path is fully reproducible, free, and resilient to network failures, so it is the default.
 
-```
-⚠️ OpenAI Image v2 generation is not available in this session. To generate screenshots with this skill, provide an OpenAI image-generation tool or configure the OpenAI API for `gpt-image-2`.
+When this path is sufficient (almost always for indie apps and v1 launches), skip Path B entirely. Many top App Store apps ship at exactly this fidelity.
 
-Do not fall back to Gemini/Nano Banana unless explicitly instructed.
-```
+### Path B — AI polish via OpenAI Image v2 (optional, for high-budget polish)
 
-Do NOT proceed with generation if the tool is unavailable.
+If the user explicitly asks for AI-enhanced photorealistic device frames or generative breakout effects, use OpenAI Image v2 (`gpt-image-2`) on top of the Path A output. Prefer an OpenAI-backed image tool or the OpenAI Images/Responses API with `gpt-image-2`. If no such path is available, fall back to Path A and inform the user — do NOT block on a missing AI service when Path A produces App Store-ready output.
+
+Do not use Gemini or Nano Banana for this skill unless the user explicitly overrides this requirement.
 
 ### App Store Connect Dimensions
 

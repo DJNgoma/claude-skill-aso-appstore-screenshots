@@ -36,12 +36,65 @@ MAX_TEXT_W = int(CANVAS_W * 0.92)
 MAX_VERB_W = int(CANVAS_W * 0.92)
 
 FONT_PATH = "/Library/Fonts/SF-Pro-Display-Black.otf"
+# Fallback for scripts SF Pro Display Black doesn't cover (CJK, Cyrillic, etc.).
+# Each entry is (path, ttc-index-or-None). The first entry whose font can render
+# every character of the requested text is used.
+FONT_FALLBACKS = [
+    ("/System/Library/Fonts/AppleSDGothicNeo.ttc", 16),  # Heavy weight — Hangul
+    ("/System/Library/Fonts/PingFang.ttc", 8),           # Heavy weight — CJK
+]
 FRAME_PATH = os.path.join(os.path.dirname(__file__), "assets", "device_frame.png")
 
 
 def hex_to_rgb(h):
     h = h.lstrip("#")
     return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
+
+# Unicode ranges that the default Latin font (SF Pro Display Black) will NOT
+# cover. Each fallback font in FONT_FALLBACKS is expected to cover at least
+# Hangul + CJK Unified Ideographs.
+_NON_LATIN_RANGES = (
+    (0x0400, 0x04FF),  # Cyrillic
+    (0x0590, 0x05FF),  # Hebrew
+    (0x0600, 0x06FF),  # Arabic
+    (0x0900, 0x097F),  # Devanagari
+    (0x0E00, 0x0E7F),  # Thai
+    (0x1100, 0x11FF),  # Hangul Jamo
+    (0x3040, 0x309F),  # Hiragana
+    (0x30A0, 0x30FF),  # Katakana
+    (0x3130, 0x318F),  # Hangul Compatibility Jamo
+    (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+    (0xAC00, 0xD7A3),  # Hangul Syllables
+    (0xFF00, 0xFFEF),  # Halfwidth/Fullwidth (Japanese punctuation, etc.)
+)
+
+
+def _needs_fallback(text):
+    """True if `text` contains any character outside the Latin font's coverage."""
+    for ch in text:
+        cp = ord(ch)
+        for lo, hi in _NON_LATIN_RANGES:
+            if lo <= cp <= hi:
+                return True
+    return False
+
+
+def select_font_path(text):
+    """Pick a font that can render the given text. Falls back to FONT_PATH."""
+    if not _needs_fallback(text):
+        return (FONT_PATH, None)
+    for path, idx in FONT_FALLBACKS:
+        if os.path.exists(path):
+            return (path, idx)
+    return (FONT_PATH, None)
+
+
+def load_font(font_spec, size):
+    path, idx = font_spec
+    if idx is None:
+        return ImageFont.truetype(path, size)
+    return ImageFont.truetype(path, size, index=idx)
 
 
 def word_wrap(draw, text, font, max_w):
@@ -63,12 +116,13 @@ def word_wrap(draw, text, font, max_w):
 def fit_font(text, max_w, size_max, size_min):
     """Return the largest font size where text fits within max_w."""
     dummy = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    spec = select_font_path(text)
     for size in range(size_max, size_min - 1, -4):
-        font = ImageFont.truetype(FONT_PATH, size)
+        font = load_font(spec, size)
         bbox = dummy.textbbox((0, 0), text, font=font)
         if (bbox[2] - bbox[0]) <= max_w:
             return font
-    return ImageFont.truetype(FONT_PATH, size_min)
+    return load_font(spec, size_min)
 
 
 def draw_centered(draw, y, text, font, max_w=None):
@@ -92,7 +146,7 @@ def compose(bg_hex, verb, desc, screenshot_path, output_path):
 
     # ── 2. Measure text, then center between top of canvas & device ─
     verb_font = fit_font(verb.upper(), MAX_VERB_W, VERB_SIZE_MAX, VERB_SIZE_MIN)
-    desc_font = ImageFont.truetype(FONT_PATH, DESC_SIZE)
+    desc_font = load_font(select_font_path(desc.upper()), DESC_SIZE)
 
     # Measure total text block height (dry run at y=0)
     dummy = ImageDraw.Draw(Image.new("RGBA", (1, 1)))

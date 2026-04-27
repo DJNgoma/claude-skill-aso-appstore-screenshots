@@ -6,7 +6,7 @@ A Claude Code skill that generates high-converting App Store screenshots for you
 
 1. **Benefit Discovery** — Analyzes your app's codebase to identify the 3-5 core benefits that drive downloads
 2. **Screenshot Pairing** — Reviews your simulator screenshots, rates them, and pairs each with the best benefit
-3. **Generation** — Creates polished App Store screenshots using a two-stage process: deterministic scaffolding (compose.py) + AI enhancement (Nano Banana Pro via Gemini MCP)
+3. **Generation** — Creates polished App Store screenshots in two layers: a deterministic Pillow scaffold (compose.py) plus an optional pop-out / breakout pass (enhance.py or OpenAI Image v2). The local-only path produces App Store-ready images with zero external dependencies; AI polish is opt-in.
 4. **Showcase** — Generates a preview image with all screenshots side-by-side
 
 ## Installation
@@ -31,15 +31,13 @@ The skill uses **SF Pro Display Black** for headline text. On macOS, install it 
 /Library/Fonts/SF-Pro-Display-Black.otf
 ```
 
-### 4. Set up Gemini MCP (for AI enhancement)
+### 4. Optional — OpenAI Image v2 for AI polish
 
-The generation phase requires [@houtini/gemini-mcp](https://www.npmjs.com/package/@houtini/gemini-mcp) to be configured as an MCP server in Claude Code:
+The default generation path is local-only (compose.py + enhance.py, both Pillow). For AI-enhanced photorealistic device frames or generative breakouts, configure an OpenAI Image v2-capable tool (`gpt-image-2`). When unavailable the skill falls back to the local-only path automatically.
 
-```bash
-npm install -g @houtini/gemini-mcp
-```
+### 5. Optional — non-Latin script support
 
-Then add it to your Claude Code MCP config (`~/.claude/settings.json` or project `.mcp.json`).
+For headlines in Hangul, CJK, Cyrillic, Arabic, etc., compose.py auto-falls-back from SF Pro Display Black to a script-appropriate font that ships with macOS (Apple SD Gothic Neo Heavy for Hangul; PingFang Heavy for CJK). No setup required on macOS.
 
 ## Usage
 
@@ -55,12 +53,12 @@ The skill will guide you through each phase interactively. Progress is saved to 
 
 ### Scaffold → Enhance Pipeline
 
-Rather than generating screenshots from scratch (which produces inconsistent results), the skill uses a two-stage approach:
+Rather than generating screenshots from scratch (which produces inconsistent results), the skill uses a layered approach:
 
-1. **compose.py** creates a deterministic scaffold with exact text positioning, device frame, and your simulator screenshot composited inside
-2. **Nano Banana Pro** (via Gemini MCP) enhances the scaffold — adding a photorealistic device frame, breakout elements, and visual polish
+1. **compose.py** creates a deterministic scaffold with exact text positioning, device frame, and your simulator screenshot composited inside. Auto-detects non-Latin scripts (Hangul, CJK, Cyrillic, Arabic, etc.) and switches fonts accordingly.
+2. **enhance.py** (local) or **OpenAI Image v2** (optional, AI) adds the breakout pop-out polish — extracting a UI panel from the screenshot, scaling it up, and floating it over the device frame with a soft drop shadow.
 
-This ensures consistent layout across all screenshots while letting AI handle the creative enhancement.
+The local path produces App Store-ready images with no external services. AI polish is opt-in.
 
 ### Output
 
@@ -85,7 +83,8 @@ The `final/` folder contains App Store-ready screenshots at exact Apple dimensio
 | File | Purpose |
 |------|---------|
 | `SKILL.md` | The skill prompt — defines the multi-phase workflow |
-| `compose.py` | Deterministic scaffold generator (Pillow-based) |
+| `compose.py` | Deterministic scaffold generator (Pillow-based) — supports non-Latin scripts via Unicode-range font fallback |
+| `enhance.py` | Local breakout/pop-out enhancer (Pillow-based) — no external services |
 | `generate_frame.py` | Generates the device frame template |
 | `showcase.py` | Generates the side-by-side showcase image |
 | `assets/device_frame.png` | Pre-rendered iPhone device frame template |
